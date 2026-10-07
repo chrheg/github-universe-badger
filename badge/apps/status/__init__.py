@@ -1,27 +1,27 @@
 import sys
 import os
 
-sys.path.insert(0, "/system/apps/status")
-os.chdir("/system/apps/status")
+APP_DIR = "/system/apps/status"
+os.chdir(APP_DIR)
+sys.path.insert(0, APP_DIR)
 
-from badgeware import io, brushes, shapes, screen, PixelFont, run
 import network
 from urllib.urequest import urlopen
 import json
 import gc
 
-small_font = PixelFont.load("/system/assets/fonts/ark.ppf")
-large_font = PixelFont.load("/system/assets/fonts/absolute.ppf")
+small_font = font.ark
+large_font = font.absolute
 
-white = brushes.color(235, 245, 255)
-phosphor = brushes.color(211, 250, 55)
-background = brushes.color(13, 17, 23)
-gray = brushes.color(100, 110, 120)
-green = brushes.color(46, 160, 67)
-yellow = brushes.color(210, 153, 34)
-orange = brushes.color(219, 109, 40)
-red = brushes.color(248, 81, 73)
-blue = brushes.color(48, 148, 255)
+white = color.rgb(235, 245, 255)
+phosphor = color.rgb(211, 250, 55)
+background = color.rgb(13, 17, 23)
+gray = color.rgb(100, 110, 120)
+green = color.rgb(46, 160, 67)
+yellow = color.rgb(210, 153, 34)
+orange = color.rgb(219, 109, 40)
+red = color.rgb(248, 81, 73)
+blue = color.rgb(48, 148, 255)
 
 SUMMARY_URL = "https://www.githubstatus.com/api/v2/summary.json"
 INCIDENTS_URL = "https://www.githubstatus.com/api/v2/incidents.json"
@@ -105,14 +105,14 @@ def get_wifi_credentials():
     finally:
         sys.path.pop(0)
 
-    return WIFI_SSID is not None
+    return bool(WIFI_SSID)
 
 
 def wlan_start():
     global wlan, ticks_start, connected
 
     if ticks_start is None:
-        ticks_start = io.ticks
+        ticks_start = badge.ticks
 
     if wlan is None:
         wlan = network.WLAN(network.STA_IF)
@@ -123,7 +123,7 @@ def wlan_start():
     is_up = wlan.isconnected()
     if connected and not is_up:
         wlan.connect(WIFI_SSID, WIFI_PASSWORD)
-        ticks_start = io.ticks
+        ticks_start = badge.ticks
     connected = is_up
     return connected
 
@@ -153,18 +153,18 @@ def parse_iso(value):
 def set_clock(timestamp):
     global clock_base, clock_ticks
     clock_base = timestamp
-    clock_ticks = io.ticks
+    clock_ticks = badge.ticks
 
 
 def now():
     if clock_base is None:
         return None
-    return clock_base + (io.ticks - clock_ticks) // 1000
+    return clock_base + (badge.ticks - clock_ticks) // 1000
 
 
 def sync_clock():
     global clock_synced, ntp_attempted
-    ntp_attempted = io.ticks
+    ntp_attempted = badge.ticks
     try:
         import ntptime
         import time
@@ -220,7 +220,7 @@ def fetch_summary():
         indicator = None
         error_message = "Status unavailable"
 
-    summary_updated = io.ticks
+    summary_updated = badge.ticks
     gc.collect()
 
 
@@ -269,7 +269,7 @@ def stream_incidents():
         response.close()
 
     incidents = found
-    incidents_updated = io.ticks
+    incidents_updated = badge.ticks
     gc.collect()
 
 
@@ -282,7 +282,7 @@ def step_incident_stream():
     except Exception as e:
         print("Incident fetch failed:", e)
         incident_stream = None
-        incidents_updated = io.ticks
+        incidents_updated = badge.ticks
 
 
 def incident_duration(incident, current):
@@ -326,18 +326,18 @@ def format_ago(seconds):
 
 
 def clear():
-    screen.brush = background
-    screen.draw(shapes.rectangle(0, 0, 160, 120))
+    screen.pen = background
+    screen.rectangle(0, 0, screen.width, screen.height)
 
 
 def center_text(text, y):
     w, _ = screen.measure_text(text)
-    screen.text(text, 80 - (w / 2), y)
+    screen.text(text, (screen.width - w) / 2, y)
 
 
 def right_text(text, y):
     w, _ = screen.measure_text(text)
-    screen.text(text, 156 - w, y)
+    screen.text(text, screen.width - 4 - w, y)
 
 
 def fit_text(text, max_width):
@@ -349,21 +349,21 @@ def fit_text(text, max_width):
 
 
 def draw_dot(x, y, colour):
-    screen.brush = colour
-    screen.draw(shapes.circle(x, y, 2))
+    screen.pen = colour
+    screen.shape(shape.circle(x, y, 2))
 
 
 def draw_stat(label, value, y):
-    screen.brush = gray
+    screen.pen = gray
     screen.text(label, 4, y)
-    screen.brush = white
+    screen.pen = white
     right_text(value, y)
 
 
 def draw_loading(y):
     screen.font = small_font
-    screen.brush = gray
-    dots = "." * ((int(io.ticks / 500) % 3) + 1)
+    screen.pen = gray
+    dots = "." * ((int(badge.ticks / 500) % 3) + 1)
     if incident_stream is not None:
         center_text(f"Reading history {stream_bytes // 1024}KB{dots}", y)
     else:
@@ -377,40 +377,40 @@ def draw_overview():
         label, colour = "UNKNOWN", gray
     else:
         screen.font = large_font
-        screen.brush = white
+        screen.pen = white
         center_text("Checking", 45)
         draw_loading(65)
         return
 
-    screen.brush = colour
-    screen.draw(shapes.circle(80, 32, 16))
+    screen.pen = colour
+    screen.shape(shape.circle(screen.width / 2, 32, 16))
 
     screen.font = large_font
-    screen.brush = white
+    screen.pen = white
     center_text(label, 52)
 
     screen.font = small_font
-    screen.brush = gray
+    screen.pen = gray
     center_text(fit_text(error_message or description, 150), 68)
 
     current = now()
     if active_incidents:
         name, impact = active_incidents[0]
-        screen.brush = IMPACT_COLOURS.get(impact, orange)
+        screen.pen = IMPACT_COLOURS.get(impact, orange)
         center_text(f"{len(active_incidents)} active incident(s)", 80)
         center_text(fit_text(name, 150), 90)
     elif incidents and current is not None:
         latest = incidents[0]
         since = current - (latest[3] or current)
-        screen.brush = white
+        screen.pen = white
         center_text(f"Incident-free for {format_duration(since)}", 80)
-        screen.brush = gray
+        screen.pen = gray
         center_text(f"Last: {format_ago(current - latest[2])}", 90)
     elif incident_stream is not None:
         draw_loading(84)
 
     if maintenance_count:
-        screen.brush = blue
+        screen.pen = blue
         center_text(f"{maintenance_count} maintenance scheduled", 99)
 
 
@@ -427,15 +427,15 @@ def draw_services():
     for name, status in shown:
         colour = COMPONENT_COLOURS.get(status, gray)
         draw_dot(8, y + 3, colour)
-        screen.brush = white if status == "operational" else colour
+        screen.pen = white if status == "operational" else colour
         screen.text(fit_text(name, 140), 14, y)
         y += 8
 
     hidden = components[len(shown):]
     if hidden:
-        screen.brush = gray
+        screen.pen = gray
         if any(status != "operational" for _, status in hidden):
-            screen.brush = orange
+            screen.pen = orange
         screen.text(f"+{len(hidden)} more", 14, y)
 
 
@@ -456,7 +456,7 @@ def draw_stats():
 
     # The API only returns the last 50 incidents
     if stats["covered_days"] < STATS_DAYS:
-        screen.brush = gray
+        screen.pen = gray
         center_text(f"Feed covers only {stats['covered_days']}d", 84)
 
 
@@ -471,10 +471,10 @@ def draw_recent():
     for incident in incidents[:4]:
         name, impact, started, resolved = incident
         draw_dot(6, y + 3, IMPACT_COLOURS.get(impact, gray))
-        screen.brush = white
+        screen.pen = white
         screen.text(fit_text(name, 146), 12, y)
 
-        screen.brush = gray
+        screen.pen = gray
         state = "ongoing" if resolved is None else format_duration(incident_duration(incident, current))
         screen.text(fit_text(f"{format_ago(current - started)} - {state} - {impact}", 146), 12, y + 8)
         y += 22
@@ -484,9 +484,9 @@ def draw_screen():
     clear()
 
     screen.font = small_font
-    screen.brush = phosphor
+    screen.pen = phosphor
     screen.text(f"GITHUB {PAGES[page]}", 2, 2)
-    screen.brush = gray
+    screen.pen = gray
     right_text(f"{page + 1}/{len(PAGES)}", 2)
 
     if connected:
@@ -496,37 +496,37 @@ def draw_screen():
 
     screen.font = small_font
     if connected:
-        screen.brush = phosphor
-        screen.text("UP/DN:Page B:Refresh", 2, 110)
+        screen.pen = phosphor
+        screen.text("UP/DN:Page SEL:Refresh", 2, 110)
         if summary_updated is not None:
-            remaining = max(0, SUMMARY_REFRESH_MS - (io.ticks - summary_updated)) // 1000
-            screen.brush = gray
+            remaining = max(0, SUMMARY_REFRESH_MS - (badge.ticks - summary_updated)) // 1000
+            screen.pen = gray
             right_text(f"{remaining}s", 110)
     else:
-        screen.brush = gray
+        screen.pen = gray
         screen.text("Connecting...", 2, 110)
 
 
 def draw_message(title, subtitle):
     clear()
     screen.font = large_font
-    screen.brush = white
+    screen.pen = white
     center_text(title, 40)
     screen.font = small_font
-    screen.brush = phosphor
+    screen.pen = phosphor
     center_text(subtitle, 60)
 
 
 def is_stale(updated, interval):
-    return updated is None or io.ticks - updated > interval
+    return updated is None or badge.ticks - updated > interval
 
 
 def update():
     global page, incident_stream
 
-    if io.BUTTON_UP in io.pressed:
+    if badge.pressed(BUTTON_UP):
         page = (page - 1) % len(PAGES)
-    if io.BUTTON_DOWN in io.pressed:
+    if badge.pressed(BUTTON_DOWN):
         page = (page + 1) % len(PAGES)
 
     if not get_wifi_credentials():
@@ -534,13 +534,13 @@ def update():
         return
 
     if not wlan_start():
-        if io.ticks - ticks_start >= WIFI_TIMEOUT * 1000:
+        if badge.ticks - ticks_start >= WIFI_TIMEOUT * 1000:
             draw_message("Connection Failed", "Check WiFi settings")
         else:
             draw_screen()
         return
 
-    refresh = io.BUTTON_B in io.pressed
+    refresh = badge.pressed(BUTTON_SELECT)
 
     if not clock_synced and is_stale(ntp_attempted, NTP_RETRY_MS):
         sync_clock()
